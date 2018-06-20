@@ -8,6 +8,7 @@
 #include "d3d11_device_context.hpp"
 #include "../dxgi/dxgi_device.hpp"
 #include "draw_call_tracker.hpp"
+#include "TextureManager.h"
 
 void D3D11Device::add_commandlist_trackers(ID3D11CommandList* command_list, const reshade::d3d11::draw_call_tracker &tracker_source)
 {
@@ -205,7 +206,9 @@ HRESULT STDMETHODCALLTYPE D3D11Device::CreateTexture1D(const D3D11_TEXTURE1D_DES
 }
 HRESULT STDMETHODCALLTYPE D3D11Device::CreateTexture2D(const D3D11_TEXTURE2D_DESC *pDesc, const D3D11_SUBRESOURCE_DATA *pInitialData, ID3D11Texture2D **ppTexture2D)
 {
-	return _orig->CreateTexture2D(pDesc, pInitialData, ppTexture2D);
+	auto result = _orig->CreateTexture2D(pDesc, pInitialData, ppTexture2D);
+	TextureManager::instance.AddTexture(*ppTexture2D);
+	return result;
 }
 HRESULT STDMETHODCALLTYPE D3D11Device::CreateTexture3D(const D3D11_TEXTURE3D_DESC *pDesc, const D3D11_SUBRESOURCE_DATA *pInitialData, ID3D11Texture3D **ppTexture3D)
 {
@@ -221,7 +224,9 @@ HRESULT STDMETHODCALLTYPE D3D11Device::CreateUnorderedAccessView(ID3D11Resource 
 }
 HRESULT STDMETHODCALLTYPE D3D11Device::CreateRenderTargetView(ID3D11Resource *pResource, const D3D11_RENDER_TARGET_VIEW_DESC *pDesc, ID3D11RenderTargetView **ppRTView)
 {
-	return _orig->CreateRenderTargetView(pResource, pDesc, ppRTView);
+	auto res = _orig->CreateRenderTargetView(pResource, pDesc, ppRTView);
+	TextureManager::instance.AddRTV(*ppRTView);
+	return res;
 }
 HRESULT STDMETHODCALLTYPE D3D11Device::CreateDepthStencilView(ID3D11Resource *pResource, const D3D11_DEPTH_STENCIL_VIEW_DESC *pDesc, ID3D11DepthStencilView **ppDepthStencilView)
 {

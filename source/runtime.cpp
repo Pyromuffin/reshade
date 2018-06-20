@@ -18,6 +18,7 @@
 #include <stb_image_resize.h>
 #include <imgui.h>
 #include <imgui_internal.h>
+#include "d3d11/TextureManager.h"
 
 namespace reshade
 {
@@ -100,6 +101,8 @@ namespace reshade
 		subscribe_to_menu("Statistics", [this]() { draw_overlay_menu_statistics(); });
 		subscribe_to_menu("Log", [this]() { draw_overlay_menu_log(); });
 		subscribe_to_menu("About", [this]() { draw_overlay_menu_about(); });
+		subscribe_to_menu("HDR Picker", [this]() { DrawHdrPickerMenu(); });
+
 	}
 	runtime::~runtime()
 	{
@@ -1146,6 +1149,8 @@ namespace reshade
 
 		ImGui::NewFrame();
 
+		//ImGui::Image()
+		
 		// Create ImGui widgets and windows
 		if (show_splash)
 		{
@@ -1263,6 +1268,7 @@ namespace reshade
 				}
 			}
 		}
+	
 
 		// Render ImGui widgets and windows
 		ImGui::Render();
@@ -1275,6 +1281,23 @@ namespace reshade
 			render_imgui_draw_data(draw_data);
 		}
 	}
+
+
+	void runtime::DrawHdrPickerMenu()
+	{
+		ImGui::Text("Please select the image that you want to use for the HDR backbuffer");
+
+		auto& textures = TextureManager::instance.texData;
+		for (int i = 0; i < textures.size(); i++)
+		{
+			ImVec2 size = { 300,300};
+			auto dataPtr = &textures[i];
+
+
+			ImGui::Image(dataPtr, size);
+		}
+	}
+
 	void runtime::draw_overlay_menu()
 	{
 		if (ImGui::BeginMenuBar())
@@ -1562,7 +1585,13 @@ namespace reshade
 				save_config();
 			}
 		}
+
+
+
+
 	}
+
+
 	void runtime::draw_overlay_menu_settings()
 	{
 		char edit_buffer[2048];

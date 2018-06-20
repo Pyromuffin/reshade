@@ -242,6 +242,7 @@ namespace reshade
 
 		void draw_overlay();
 		void draw_overlay_menu();
+		void DrawHdrPickerMenu();
 		void draw_overlay_menu_home();
 		void draw_overlay_menu_settings();
 		void draw_overlay_menu_statistics();
