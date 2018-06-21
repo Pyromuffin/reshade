@@ -7,6 +7,7 @@
 #include "dxgi_swapchain.hpp"
 #include "../d3d11/d3d11_device_context.hpp"
 #include <algorithm>
+#include "../d3d11/TextureManager.h"
 
 void DXGISwapChain::perform_present(UINT PresentFlags)
 {
@@ -26,6 +27,9 @@ void DXGISwapChain::perform_present(UINT PresentFlags)
 			clear_drawcall_stats();
 			break;
 		}
+
+
+
 	}
 }
 
@@ -42,6 +46,8 @@ void DXGISwapChain::clear_drawcall_stats()
 // IDXGISwapChain
 HRESULT STDMETHODCALLTYPE DXGISwapChain::QueryInterface(REFIID riid, void **ppvObj)
 {
+	LOG(INFO) << "QUERY";
+
 	if (ppvObj == nullptr)
 	{
 		return E_POINTER;
@@ -230,7 +236,17 @@ HRESULT STDMETHODCALLTYPE DXGISwapChain::GetDevice(REFIID riid, void **ppDevice)
 HRESULT STDMETHODCALLTYPE DXGISwapChain::Present(UINT SyncInterval, UINT Flags)
 {
 	perform_present(Flags);
-	return _orig->Present(SyncInterval, Flags);
+
+	static bool start = false;
+
+	if (start)
+	{
+		return TextureManager::instance.PresentHDR(this, SyncInterval, Flags);
+	}
+	else
+	{
+		return _orig->Present(SyncInterval, Flags);
+	}
 }
 HRESULT STDMETHODCALLTYPE DXGISwapChain::GetBuffer(UINT Buffer, REFIID riid, void **ppSurface)
 {

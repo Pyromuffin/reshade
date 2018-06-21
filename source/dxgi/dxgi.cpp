@@ -7,6 +7,7 @@
 #include "hook_manager.hpp"
 #include "dxgi_device.hpp"
 #include "dxgi_swapchain.hpp"
+#include "../d3d11/TextureManager.h"
 
 void dump_swapchain_desc(const DXGI_SWAP_CHAIN_DESC &desc)
 {
@@ -66,6 +67,7 @@ HRESULT STDMETHODCALLTYPE IDXGIFactory_CreateSwapChain(IDXGIFactory *pFactory, I
 {
 	LOG(INFO) << "Redirecting '" << "IDXGIFactory::CreateSwapChain" << "(" << pFactory << ", " << pDevice << ", " << pDesc << ", " << ppSwapChain << ")' ...";
 
+
 	IUnknown *device_orig = pDevice;
 	D3D10Device *device_d3d10 = nullptr;
 	D3D11Device *device_d3d11 = nullptr;
@@ -91,6 +93,14 @@ HRESULT STDMETHODCALLTYPE IDXGIFactory_CreateSwapChain(IDXGIFactory *pFactory, I
 
 	const HRESULT hr = reshade::hooks::call(&IDXGIFactory_CreateSwapChain)(pFactory, device_orig, pDesc, ppSwapChain);
 
+	auto createSwapchainLambda = [&](DXGI_SWAP_CHAIN_DESC* descPtr, IDXGISwapChain** swapchainPtr) -> HRESULT
+	{
+		return reshade::hooks::call(&IDXGIFactory_CreateSwapChain)(pFactory, device_orig, descPtr, swapchainPtr);
+	};
+
+	TextureManager::instance.CreateHDRSwapChain(pDesc, createSwapchainLambda);
+
+
 	if (FAILED(hr))
 	{
 		LOG(WARNING) << "> 'IDXGIFactory::CreateSwapChain' failed with error code " << std::hex << hr << std::dec << "!";
@@ -98,7 +108,9 @@ HRESULT STDMETHODCALLTYPE IDXGIFactory_CreateSwapChain(IDXGIFactory *pFactory, I
 		return hr;
 	}
 
-	IDXGISwapChain *const swapchain = *ppSwapChain;
+	IDXGISwapChain * swapchain = *ppSwapChain;
+
+
 
 	DXGI_SWAP_CHAIN_DESC desc;
 	swapchain->GetDesc(&desc);

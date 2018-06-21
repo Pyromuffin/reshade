@@ -1,8 +1,53 @@
 #include "TextureManager.h"
 #include "log.hpp"
-
+#include <dxgi1_5.h>
 
 TextureManager TextureManager::instance;
+
+
+void TextureManager::CreateHDRSwapChain(DXGI_SWAP_CHAIN_DESC* desc, std::function<HRESULT(DXGI_SWAP_CHAIN_DESC*, IDXGISwapChain**)> createSwapChainLambda)
+{
+	DXGI_SWAP_CHAIN_DESC descCopy = *desc;
+	descCopy.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+	descCopy.BufferDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
+
+	HRESULT hr = createSwapChainLambda(&descCopy, (IDXGISwapChain**)&hdrSwapChain);
+
+	//const HRESULT hr = reshade::hooks::call(&IDXGIFactory_CreateSwapChain)(pFactory, device_orig, pDesc, ppSwapChain);
+	//auto hr = factory->CreateSwapChain(device, &descCopy, (IDXGISwapChain**)&hdrSwapChain);
+
+	LOG(INFO) << "HDR swapchain created with result " << hr;
+
+	hdrSwapChain->SetColorSpace1(DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020);
+
+	LOG(INFO) << "HDR colorspace set with result " << hr;
+
+}
+
+
+HRESULT TextureManager::PresentHDR(IDXGISwapChain * sdrSwapchain, UINT sync, UINT flags)
+{
+	// copy hdr rtv into swapchain buffer?
+	ID3D11Device *device;
+	sdrSwapchain->GetDevice(__uuidof(ID3D11Device), (void**)&device);
+
+	ID3D11DeviceContext *context;
+
+	device->GetImmediateContext(&context);
+
+	ID3D11Resource * backbuffer;
+	IDXGISwapChain4* sdrSwapchain4 = (IDXGISwapChain4*)sdrSwapchain;
+
+	hdrSwapChain->GetBuffer(hdrSwapChain->GetCurrentBackBufferIndex(), __uuidof(ID3D11Resource), (void**)&backbuffer);
+
+	int rtvIndex = 1;
+	auto& rtv = TextureManager::instance.allRenderTargets[rtvIndex];
+	ID3D11Resource * rtResource;
+	rtv->GetResource(&rtResource);
+	context->CopyResource(backbuffer, rtResource);
+
+	return hdrSwapChain->Present(sync, flags);
+}
 
 void TextureManager::AddTexture(ID3D11Texture2D * tex)
 {
@@ -10,9 +55,21 @@ void TextureManager::AddTexture(ID3D11Texture2D * tex)
 	allTextures.push_back(tex);
 }
 
+static void QueryColorspaces(IDXGISwapChain * swapchain)
+{
+	IDXGISwapChain * oldSwapChain;
+	swapchain->QueryInterface(__uuidof(IDXGISwapChain4), (void**)&oldSwapChain);
+	IDXGISwapChain4 * swapchain4 = (IDXGISwapChain4*)swapchain;
+	UINT support;
+	for (int i = 0; i <= 24; i++)
+	{
+		auto hr = swapchain4->CheckColorSpaceSupport((DXGI_COLOR_SPACE_TYPE)i, &support);
+		LOG(INFO) << " HDR SUPPPPORT " << i << " " << support << " " << hr;
+	}
+}
+
 void TextureManager::AddRTV(ID3D11RenderTargetView * rtv)
 {
-	
 	// get srv
 	D3D11_RENDER_TARGET_VIEW_DESC desc;
 	rtv->GetDesc(&desc);
@@ -48,6 +105,7 @@ void TextureManager::AddRTV(ID3D11RenderTargetView * rtv)
 
 
 }
+
 
 TextureManager::TextureManager()
 {
