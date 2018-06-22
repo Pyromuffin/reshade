@@ -298,6 +298,9 @@
     <FxCompile Include="res\shader_imgui_vs.hlsl">
       <Filter>resources</Filter>
     </FxCompile>
+    <FxCompile Include="res\HDR.hlsl">
+      <Filter>resources</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="res\exports.def">

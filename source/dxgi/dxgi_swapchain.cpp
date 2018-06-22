@@ -237,9 +237,7 @@ HRESULT STDMETHODCALLTYPE DXGISwapChain::Present(UINT SyncInterval, UINT Flags)
 {
 	perform_present(Flags);
 
-	static bool start = false;
-
-	if (start)
+	if (TextureManager::instance.start)
 	{
 		return TextureManager::instance.PresentHDR(this, SyncInterval, Flags);
 	}

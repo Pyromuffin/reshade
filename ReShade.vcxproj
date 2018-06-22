@@ -126,6 +126,9 @@
     <PreBuildEvent>
       <Command>tools\verbuild res\version.h -c</Command>
     </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>C:\Users\pyrom\Desktop\copy.bat</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug App|Win32'">
     <ClCompile>
@@ -364,6 +367,19 @@
     <None Include="res\resource.rc2" />
   </ItemGroup>
   <ItemGroup>
+    <FxCompile Include="res\HDR.hlsl">
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">CopyHDR</EntryPointName>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.1</ShaderModel>
+      <VariableName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">copyShader</VariableName>
+      <HeaderFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">res/hdrShaders.h</HeaderFileOutput>
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Debug App|x64'">CopyHDR</EntryPointName>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug App|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug App|x64'">5.0</ShaderModel>
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">CopyHDR</EntryPointName>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.1</ShaderModel>
+    </FxCompile>
     <FxCompile Include="res\shader_copy_ps.hlsl">
       <ShaderType>Pixel</ShaderType>
     </FxCompile>

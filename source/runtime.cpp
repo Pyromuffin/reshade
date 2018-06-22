@@ -1112,6 +1112,11 @@ namespace reshade
 			_show_menu = !_show_menu;
 		}
 
+		if (_input->is_key_pressed(0x70)) // i hope this is f11
+		{
+			TextureManager::instance.start = !TextureManager::instance.start;
+		}
+
 		_effects_expanded_state &= 2;
 
 		// Update ImGui configuration
@@ -1285,6 +1290,7 @@ namespace reshade
 
 	void runtime::DrawHdrPickerMenu()
 	{
+		ImGui::Checkbox("Start", &TextureManager::instance.start);
 		ImGui::Text("Please select the image that you want to use for the HDR backbuffer");
 
 		auto& textures = TextureManager::instance.texData;

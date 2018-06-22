@@ -4,25 +4,40 @@
 
 TextureManager TextureManager::instance;
 
+constexpr bool linear = true;
 
 void TextureManager::CreateHDRSwapChain(DXGI_SWAP_CHAIN_DESC* desc, std::function<HRESULT(DXGI_SWAP_CHAIN_DESC*, IDXGISwapChain**)> createSwapChainLambda)
 {
 	DXGI_SWAP_CHAIN_DESC descCopy = *desc;
 	descCopy.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-	descCopy.BufferDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
+
+	if constexpr(linear)
+	{
+		descCopy.BufferDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+	}
+	else
+	{
+		descCopy.BufferDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
+	}
 
 	HRESULT hr = createSwapChainLambda(&descCopy, (IDXGISwapChain**)&hdrSwapChain);
 
-	//const HRESULT hr = reshade::hooks::call(&IDXGIFactory_CreateSwapChain)(pFactory, device_orig, pDesc, ppSwapChain);
-	//auto hr = factory->CreateSwapChain(device, &descCopy, (IDXGISwapChain**)&hdrSwapChain);
-
 	LOG(INFO) << "HDR swapchain created with result " << hr;
 
-	hdrSwapChain->SetColorSpace1(DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020);
-
+	if constexpr(linear)
+	{
+		hr = hdrSwapChain->SetColorSpace1(DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709);
+	}
+	else
+	{
+		hr = hdrSwapChain->SetColorSpace1(DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020);
+	}
+	
 	LOG(INFO) << "HDR colorspace set with result " << hr;
 
 }
+
+
 
 
 HRESULT TextureManager::PresentHDR(IDXGISwapChain * sdrSwapchain, UINT sync, UINT flags)
@@ -36,15 +51,12 @@ HRESULT TextureManager::PresentHDR(IDXGISwapChain * sdrSwapchain, UINT sync, UIN
 	device->GetImmediateContext(&context);
 
 	ID3D11Resource * backbuffer;
-	IDXGISwapChain4* sdrSwapchain4 = (IDXGISwapChain4*)sdrSwapchain;
+	ID3D11Resource * sdrBackbuffer;
+	
 
-	hdrSwapChain->GetBuffer(hdrSwapChain->GetCurrentBackBufferIndex(), __uuidof(ID3D11Resource), (void**)&backbuffer);
-
+	InitResources(device);
 	int rtvIndex = 1;
-	auto& rtv = TextureManager::instance.allRenderTargets[rtvIndex];
-	ID3D11Resource * rtResource;
-	rtv->GetResource(&rtResource);
-	context->CopyResource(backbuffer, rtResource);
+	CopyHDR(context, m_computeShader, texData[rtvIndex].srv[0].get(), m_backbufferUAVs[hdrSwapChain->GetCurrentBackBufferIndex()], 3840, 2160);
 
 	return hdrSwapChain->Present(sync, flags);
 }
@@ -104,6 +116,50 @@ void TextureManager::AddRTV(ID3D11RenderTargetView * rtv)
 	}
 
 
+}
+
+void TextureManager::CopyHDR( ID3D11DeviceContext * context, ID3D11ComputeShader *shader, ID3D11ShaderResourceView *srv, ID3D11UnorderedAccessView * uav, UINT textureX, UINT textureY)
+{
+	context->CSSetShader(shader, NULL, 0);
+	ID3D11ShaderResourceView * srvs[1] = { srv };
+	ID3D11UnorderedAccessView * uavs[1] = { uav };
+	context->CSSetShaderResources(0, 1, srvs);
+	context->CSSetUnorderedAccessViews(0, 1, uavs, NULL);
+	context->Dispatch(textureX / 8, textureY / 8, 1);
+}
+
+
+void TextureManager::InitResources( ID3D11Device * device)
+{
+	#include "hdrShaders.h"
+	if (!m_inited)
+	{
+		// create CS shader.
+		auto HR = device->CreateComputeShader(copyShader, sizeof(copyShader), NULL, &m_computeShader);
+		LOG(INFO) << "Shader HR: " << HR;
+
+		// create backbuffer UAVs
+		D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc;
+		uavDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		uavDesc.ViewDimension = D3D11_UAV_DIMENSION::D3D11_UAV_DIMENSION_TEXTURE2D;
+		uavDesc.Texture2D.MipSlice = 0;
+
+		ID3D11Resource * backbuffer;
+		HR = hdrSwapChain->GetBuffer(0, __uuidof(ID3D11Resource), (void**)&backbuffer);
+		LOG(INFO) << "BB 0 HR: " << HR;
+
+		HR = device->CreateUnorderedAccessView(backbuffer, &uavDesc, &m_backbufferUAVs[0]);
+		LOG(INFO) << "UAV 0 HR: " << HR;
+
+		HR = hdrSwapChain->GetBuffer(1, __uuidof(ID3D11Resource), (void**)&backbuffer);
+		LOG(INFO) << "BB 1 HR: " << HR;
+
+		HR = device->CreateUnorderedAccessView(backbuffer, &uavDesc, &m_backbufferUAVs[1]);
+		LOG(INFO) << "UAV 1 HR: " << HR;
+
+		m_inited = true;
+	}
+	
 }
 
 
