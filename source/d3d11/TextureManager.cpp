@@ -10,6 +10,9 @@ void TextureManager::CreateHDRSwapChain(DXGI_SWAP_CHAIN_DESC* desc, std::functio
 {
 	DXGI_SWAP_CHAIN_DESC descCopy = *desc;
 	descCopy.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+	descCopy.BufferUsage |= DXGI_USAGE_UNORDERED_ACCESS;
+	descCopy.BufferUsage |= DXGI_USAGE_SHADER_INPUT;
+
 
 	if constexpr(linear)
 	{
@@ -55,7 +58,7 @@ HRESULT TextureManager::PresentHDR(IDXGISwapChain * sdrSwapchain, UINT sync, UIN
 	
 
 	InitResources(device);
-	int rtvIndex = 1;
+	int rtvIndex = 0;
 	CopyHDR(context, m_computeShader, texData[rtvIndex].srv[0].get(), m_backbufferUAVs[hdrSwapChain->GetCurrentBackBufferIndex()], 3840, 2160);
 
 	return hdrSwapChain->Present(sync, flags);
@@ -120,12 +123,19 @@ void TextureManager::AddRTV(ID3D11RenderTargetView * rtv)
 
 void TextureManager::CopyHDR( ID3D11DeviceContext * context, ID3D11ComputeShader *shader, ID3D11ShaderResourceView *srv, ID3D11UnorderedAccessView * uav, UINT textureX, UINT textureY)
 {
+	context->OMSetRenderTargets(0, nullptr, nullptr);
 	context->CSSetShader(shader, NULL, 0);
 	ID3D11ShaderResourceView * srvs[1] = { srv };
 	ID3D11UnorderedAccessView * uavs[1] = { uav };
 	context->CSSetShaderResources(0, 1, srvs);
 	context->CSSetUnorderedAccessViews(0, 1, uavs, NULL);
 	context->Dispatch(textureX / 8, textureY / 8, 1);
+
+	srvs[0] = nullptr;
+	uavs[0] = nullptr;
+
+	context->CSSetShaderResources(0, 1, srvs);
+	context->CSSetUnorderedAccessViews(0, 1, uavs, NULL);
 }
 
 
@@ -150,12 +160,6 @@ void TextureManager::InitResources( ID3D11Device * device)
 
 		HR = device->CreateUnorderedAccessView(backbuffer, &uavDesc, &m_backbufferUAVs[0]);
 		LOG(INFO) << "UAV 0 HR: " << HR;
-
-		HR = hdrSwapChain->GetBuffer(1, __uuidof(ID3D11Resource), (void**)&backbuffer);
-		LOG(INFO) << "BB 1 HR: " << HR;
-
-		HR = device->CreateUnorderedAccessView(backbuffer, &uavDesc, &m_backbufferUAVs[1]);
-		LOG(INFO) << "UAV 1 HR: " << HR;
 
 		m_inited = true;
 	}
