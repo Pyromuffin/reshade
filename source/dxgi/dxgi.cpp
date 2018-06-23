@@ -454,6 +454,20 @@ HOOK_EXPORT HRESULT WINAPI CreateDXGIFactory(REFIID riid, void **ppFactory)
 
 	return CreateDXGIFactory1(riid, ppFactory);
 }
+
+
+HOOK_EXPORT void* WINAPI CompatValue()
+{
+	return reshade::hooks::call(&CompatValue);
+}
+
+
+HOOK_EXPORT void* WINAPI CompatString()
+{
+	return reshade::hooks::call(&CompatString);
+}
+
+
 HOOK_EXPORT HRESULT WINAPI CreateDXGIFactory1(REFIID riid, void **ppFactory)
 {
 	OLECHAR riid_string[40];

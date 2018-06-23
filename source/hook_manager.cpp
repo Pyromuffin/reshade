@@ -178,7 +178,10 @@ namespace
 			// Filter uninteresting functions
 			if (it != replacement_exports.cend() &&
 				std::strcmp(symbol.name, "DXGIReportAdapterConfiguration") != 0 &&
-				std::strcmp(symbol.name, "DXGIDumpJournal") != 0)
+				(std::strcmp(symbol.name, "DXGIDumpJournal") != 0)
+				)
+
+
 			{
 				LOG(INFO) << "  | 0x" << std::setw(16) << symbol.address << " | " << std::setw(7) << symbol.ordinal << " | " << std::setw(50) << symbol.name << " |";
 
