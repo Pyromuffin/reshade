@@ -4,7 +4,7 @@
 
 TextureManager TextureManager::instance;
 
-constexpr bool linear = true;
+constexpr bool linear = false;
 
 void TextureManager::CreateHDRSwapChain(DXGI_SWAP_CHAIN_DESC* desc, std::function<HRESULT(DXGI_SWAP_CHAIN_DESC*, IDXGISwapChain**)> createSwapChainLambda)
 {
@@ -150,7 +150,7 @@ void TextureManager::InitResources( ID3D11Device * device)
 
 		// create backbuffer UAVs
 		D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc;
-		uavDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		uavDesc.Format = linear ? DXGI_FORMAT_R16G16B16A16_FLOAT : DXGI_FORMAT_R10G10B10A2_UNORM;
 		uavDesc.ViewDimension = D3D11_UAV_DIMENSION::D3D11_UAV_DIMENSION_TEXTURE2D;
 		uavDesc.Texture2D.MipSlice = 0;
 
