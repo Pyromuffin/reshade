@@ -6,6 +6,7 @@ TextureManager TextureManager::instance;
 
 constexpr bool linear = false;
 
+
 void TextureManager::CreateHDRSwapChain(DXGI_SWAP_CHAIN_DESC* desc, std::function<HRESULT(DXGI_SWAP_CHAIN_DESC*, IDXGISwapChain**)> createSwapChainLambda)
 {
 	DXGI_SWAP_CHAIN_DESC descCopy = *desc;
@@ -129,6 +130,14 @@ void TextureManager::CopyHDR( ID3D11DeviceContext * context, ID3D11ComputeShader
 	ID3D11UnorderedAccessView * uavs[1] = { uav };
 	context->CSSetShaderResources(0, 1, srvs);
 	context->CSSetUnorderedAccessViews(0, 1, uavs, NULL);
+
+
+	D3D11_MAPPED_SUBRESOURCE mappedBuffer;
+	context->Map(m_constantBuffer, 0, D3D11_MAP::D3D11_MAP_WRITE_DISCARD, 0, &mappedBuffer);
+	memcpy(mappedBuffer.pData, &constants, sizeof(constants));
+	context->Unmap(m_constantBuffer, 0);
+
+	context->CSSetConstantBuffers(0, 1, &m_constantBuffer);
 	context->Dispatch(textureX / 8, textureY / 8, 1);
 
 	srvs[0] = nullptr;
@@ -160,6 +169,16 @@ void TextureManager::InitResources( ID3D11Device * device)
 
 		HR = device->CreateUnorderedAccessView(backbuffer, &uavDesc, &m_backbufferUAVs[0]);
 		LOG(INFO) << "UAV 0 HR: " << HR;
+
+		D3D11_BUFFER_DESC cbDesc;
+		cbDesc.ByteWidth = sizeof(ShaderConstants);
+		cbDesc.Usage = D3D11_USAGE_DYNAMIC;
+		cbDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+		cbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+		cbDesc.MiscFlags = 0;
+		cbDesc.StructureByteStride = 0;
+		HR = device->CreateBuffer(&cbDesc, nullptr, &m_constantBuffer);
+		LOG(INFO) << "CB HR: " << HR;
 
 		m_inited = true;
 	}

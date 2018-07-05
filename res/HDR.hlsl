@@ -24,13 +24,18 @@ float3 REC709toREC2020(float3 RGB709)
 	return mul(ConvMat, RGB709);
 }
 
+cbuffer cb : register(b0)
+{
+	float4 brightnessScale;
+};
+
 [numthreads(8, 8, 1)]
 void CopyHDR( uint2 dtid : SV_DispatchThreadID )
 {
 	float4 col = sdrTex[dtid];
 	// so apparently 1,1,1, is 80 nits paperwhite, meaning this is going to be sdr looking.
-	col /= 1000.0f;
-	col.rgb = REC709toREC2020(col.rgb);
+	col *= brightnessScale.x;
+	//col.rgb = REC709toREC2020(col.rgb);
 
 	col.rgb = ApplyREC2084Curve(col.rgb);
 

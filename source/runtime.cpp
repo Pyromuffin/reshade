@@ -1291,6 +1291,7 @@ namespace reshade
 	void runtime::DrawHdrPickerMenu()
 	{
 		ImGui::Checkbox("Start", &TextureManager::instance.start);
+		ImGui::SliderFloat("Brightness scale", &TextureManager::instance.constants.brightnessScale, 0.0001f, 1.0f);
 		ImGui::Text("Please select the image that you want to use for the HDR backbuffer");
 
 		auto& textures = TextureManager::instance.texData;
@@ -1298,8 +1299,6 @@ namespace reshade
 		{
 			ImVec2 size = { 300,300};
 			auto dataPtr = &textures[i];
-
-
 			ImGui::Image(dataPtr, size);
 		}
 	}
