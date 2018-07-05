@@ -98,7 +98,6 @@ HRESULT STDMETHODCALLTYPE IDXGIFactory_CreateSwapChain(IDXGIFactory *pFactory, I
 		return reshade::hooks::call(&IDXGIFactory_CreateSwapChain)(pFactory, device_orig, descPtr, swapchainPtr);
 	};
 
-	TextureManager::instance.CreateHDRSwapChain(pDesc, createSwapchainLambda);
 
 
 	if (FAILED(hr))
@@ -148,6 +147,9 @@ HRESULT STDMETHODCALLTYPE IDXGIFactory_CreateSwapChain(IDXGIFactory *pFactory, I
 		device_d3d11->_runtimes.push_back(runtime);
 
 		*ppSwapChain = new DXGISwapChain(device_d3d11, swapchain, runtime);
+		TextureManager::instance.CreateHDRSwapChain(pDesc, device_d3d11, runtime, createSwapchainLambda);
+
+
 	}
 	else
 	{

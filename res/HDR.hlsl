@@ -1,5 +1,7 @@
 
-Texture2D<float4> sdrTex : register(t0);
+Texture2D<float4> linearTex : register(t0);
+Texture2D<float4> originalTex : register(t1);
+
 RWTexture2D<float4> outHdrTex : register(u0);
 
 float3 ApplyREC2084Curve(float3 L)
@@ -26,18 +28,59 @@ float3 REC709toREC2020(float3 RGB709)
 
 cbuffer cb : register(b0)
 {
-	float4 brightnessScale;
+	float brightnessScale;
+	bool wcg;
+	bool enabled;
+	float pad3;
 };
 
-[numthreads(8, 8, 1)]
-void CopyHDR( uint2 dtid : SV_DispatchThreadID )
+float3 ApplyREC709Curve(float3 x)
 {
-	float4 col = sdrTex[dtid];
-	// so apparently 1,1,1, is 80 nits paperwhite, meaning this is going to be sdr looking.
-	col *= brightnessScale.x;
-	//col.rgb = REC709toREC2020(col.rgb);
+	return x < 0.0181 ? 4.5 * x : 1.0993 * pow(x, 0.45) - 0.0993;
+}
 
-	col.rgb = ApplyREC2084Curve(col.rgb);
+float3 ApplySRGBCurve(float3 x)
+{
+	// Approximately pow(x, 1.0 / 2.2)
+	return x < 0.0031308 ? 12.92 * x : 1.055 * pow(x, 1.0 / 2.4) - 0.055;
+}
+
+float3 RemoveSRGBCurve(float3 x)
+{
+	// Approximately pow(x, 2.2)
+	return x < 0.04045 ? x / 12.92 : pow((x + 0.055) / 1.055, 2.4);
+}
+
+[numthreads(8, 8, 1)]
+void CopyHDR(uint2 dtid : SV_DispatchThreadID)
+{
+	float4 linearColor = linearTex[dtid];
+	float4 originalColor = originalTex[dtid];
+
+	float4 col;
+
+	if (!enabled)
+	{
+		col = originalColor;
+		col.rgb = RemoveSRGBCurve(col.rgb);
+		//col.rgb = REC709toREC2020(col.rgb);
+		//col.rgb = ApplySRGBCurve(col.rgb);
+		col.rgb = ApplyREC709Curve(col.rgb);
+		col.rgb = ApplyREC2084Curve(col.rgb);
+	}
+	else
+	{
+		col = linearColor;
+		col *= brightnessScale.x;
+		if (!wcg)
+		{
+			col.rgb = REC709toREC2020(col.rgb);
+		}
+		col.rgb = ApplyREC2084Curve(col.rgb);
+
+	}
+
+
 
 	outHdrTex[dtid] = col;
 

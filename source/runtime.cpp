@@ -1112,9 +1112,14 @@ namespace reshade
 			_show_menu = !_show_menu;
 		}
 
-		if (_input->is_key_pressed(0x70)) // i hope this is f11
+		if (_input->is_key_pressed(0x70)) // i hope this is f1
 		{
 			TextureManager::instance.start = !TextureManager::instance.start;
+		}
+
+		if (_input->is_key_pressed(0x71)) // i hope this is f2
+		{
+			TextureManager::instance.constants.wcg = !TextureManager::instance.constants.wcg;
 		}
 
 		_effects_expanded_state &= 2;

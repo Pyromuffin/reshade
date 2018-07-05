@@ -7,7 +7,7 @@ TextureManager TextureManager::instance;
 constexpr bool linear = false;
 
 
-void TextureManager::CreateHDRSwapChain(DXGI_SWAP_CHAIN_DESC* desc, std::function<HRESULT(DXGI_SWAP_CHAIN_DESC*, IDXGISwapChain**)> createSwapChainLambda)
+void TextureManager::CreateHDRSwapChain(DXGI_SWAP_CHAIN_DESC* desc, D3D11Device * device, const std::shared_ptr<reshade::runtime> &runtime, std::function<HRESULT(DXGI_SWAP_CHAIN_DESC*, IDXGISwapChain**)> createSwapChainLambda)
 {
 	DXGI_SWAP_CHAIN_DESC descCopy = *desc;
 	descCopy.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
@@ -24,7 +24,10 @@ void TextureManager::CreateHDRSwapChain(DXGI_SWAP_CHAIN_DESC* desc, std::functio
 		descCopy.BufferDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
 	}
 
-	HRESULT hr = createSwapChainLambda(&descCopy, (IDXGISwapChain**)&hdrSwapChain);
+	IDXGISwapChain *swapchain;
+
+	HRESULT hr = createSwapChainLambda(&descCopy, (IDXGISwapChain**)&swapchain);
+	hdrSwapChain = new DXGISwapChain(device, swapchain, runtime);
 
 	LOG(INFO) << "HDR swapchain created with result " << hr;
 
@@ -41,12 +44,10 @@ void TextureManager::CreateHDRSwapChain(DXGI_SWAP_CHAIN_DESC* desc, std::functio
 
 }
 
-
-
+std::unordered_map<ID3D11Resource*, ID3D11ShaderResourceView *> srvMap;
 
 HRESULT TextureManager::PresentHDR(IDXGISwapChain * sdrSwapchain, UINT sync, UINT flags)
 {
-	// copy hdr rtv into swapchain buffer?
 	ID3D11Device *device;
 	sdrSwapchain->GetDevice(__uuidof(ID3D11Device), (void**)&device);
 
@@ -60,9 +61,34 @@ HRESULT TextureManager::PresentHDR(IDXGISwapChain * sdrSwapchain, UINT sync, UIN
 
 	InitResources(device);
 	int rtvIndex = 0;
-	CopyHDR(context, m_computeShader, texData[rtvIndex].srv[0].get(), m_backbufferUAVs[hdrSwapChain->GetCurrentBackBufferIndex()], 3840, 2160);
+	ID3D11ShaderResourceView * srvs[2];
+	srvs[0] = texData[rtvIndex].srv[0].get();
 
-	return hdrSwapChain->Present(sync, flags);
+	ID3D11Resource * currentBB;
+	sdrSwapchain->GetBuffer(0, __uuidof(ID3D11Resource), (void**)&currentBB);
+
+	if (srvMap.count(currentBB) > 0)
+	{
+		srvs[1] = srvMap[currentBB];
+	}
+	else
+	{
+		D3D11_SHADER_RESOURCE_VIEW_DESC desc;
+		desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+		desc.Texture2D.MipLevels = -1;
+		desc.Texture2D.MostDetailedMip = 0;
+		desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // srgb?
+
+		ID3D11ShaderResourceView * srv;
+		device->CreateShaderResourceView(currentBB, &desc, &srv);
+		srvMap[currentBB] = srv;
+		srvs[1] = srvMap[currentBB];
+	}
+
+
+	CopyHDR(context, m_computeShader, srvs, m_backbufferUAVs[hdrSwapChain->GetCurrentBackBufferIndex()], 3840, 2160);
+
+	return hdrSwapChain->_orig->Present(sync, flags);
 }
 
 void TextureManager::AddTexture(ID3D11Texture2D * tex)
@@ -122,13 +148,13 @@ void TextureManager::AddRTV(ID3D11RenderTargetView * rtv)
 
 }
 
-void TextureManager::CopyHDR( ID3D11DeviceContext * context, ID3D11ComputeShader *shader, ID3D11ShaderResourceView *srv, ID3D11UnorderedAccessView * uav, UINT textureX, UINT textureY)
+void TextureManager::CopyHDR( ID3D11DeviceContext * context, ID3D11ComputeShader *shader, ID3D11ShaderResourceView ** srvs, ID3D11UnorderedAccessView * uav, UINT textureX, UINT textureY)
 {
 	context->OMSetRenderTargets(0, nullptr, nullptr);
 	context->CSSetShader(shader, NULL, 0);
-	ID3D11ShaderResourceView * srvs[1] = { srv };
+	//ID3D11ShaderResourceView * srvs[1] = { srv };
 	ID3D11UnorderedAccessView * uavs[1] = { uav };
-	context->CSSetShaderResources(0, 1, srvs);
+	context->CSSetShaderResources(0, 2, srvs);
 	context->CSSetUnorderedAccessViews(0, 1, uavs, NULL);
 
 
@@ -141,7 +167,10 @@ void TextureManager::CopyHDR( ID3D11DeviceContext * context, ID3D11ComputeShader
 	context->Dispatch(textureX / 8, textureY / 8, 1);
 
 	srvs[0] = nullptr;
+	srvs[1] = nullptr;
+
 	uavs[0] = nullptr;
+
 
 	context->CSSetShaderResources(0, 1, srvs);
 	context->CSSetUnorderedAccessViews(0, 1, uavs, NULL);
@@ -179,6 +208,7 @@ void TextureManager::InitResources( ID3D11Device * device)
 		cbDesc.StructureByteStride = 0;
 		HR = device->CreateBuffer(&cbDesc, nullptr, &m_constantBuffer);
 		LOG(INFO) << "CB HR: " << HR;
+
 
 		m_inited = true;
 	}
