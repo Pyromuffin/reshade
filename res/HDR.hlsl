@@ -4,13 +4,19 @@ Texture2D<float4> originalTex : register(t1);
 
 RWTexture2D<float4> outHdrTex : register(u0);
 
-float3 ApplyREC2084Curve(float3 L)
+float3 ApplyREC2084Curve(float3 L, float maxLuminance)
 {
 	float m1 = 2610.0 / 4096.0 / 4;
 	float m2 = 2523.0 / 4096.0 * 128;
 	float c1 = 3424.0 / 4096.0;
 	float c2 = 2413.0 / 4096.0 * 32;
 	float c3 = 2392.0 / 4096.0 * 32;
+
+	// L = FD / 10000, so if FD == 10000, then L = 1.
+	// so to scale max luminance, we want to multiply by maxLuminance / 10000
+	float maxLightScale = maxLuminance / 10000.0f;
+	L *= maxLightScale;
+
 	float3 Lp = pow(L, m1);
 	return pow((c1 + c2 * Lp) / (1 + c3 * Lp), m2);
 }
@@ -63,10 +69,10 @@ void CopyHDR(uint2 dtid : SV_DispatchThreadID)
 	{
 		col = originalColor;
 		col.rgb = RemoveSRGBCurve(col.rgb);
-		//col.rgb = REC709toREC2020(col.rgb);
+		col.rgb = REC709toREC2020(col.rgb);
 		//col.rgb = ApplySRGBCurve(col.rgb);
-		col.rgb = ApplyREC709Curve(col.rgb);
-		col.rgb = ApplyREC2084Curve(col.rgb);
+		//col.rgb = ApplyREC709Curve(col.rgb);
+		col.rgb = ApplyREC2084Curve(col.rgb, 180);
 	}
 	else
 	{
@@ -76,7 +82,7 @@ void CopyHDR(uint2 dtid : SV_DispatchThreadID)
 		{
 			col.rgb = REC709toREC2020(col.rgb);
 		}
-		col.rgb = ApplyREC2084Curve(col.rgb);
+		col.rgb = ApplyREC2084Curve(col.rgb, 10000);
 
 	}
 
