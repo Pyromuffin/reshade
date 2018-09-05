@@ -9,13 +9,21 @@
 
 struct IDXGISwapChain4;
 
+union BigBool
+{
+	bool b;
+	uint32_t u;
+};
+
 struct ShaderConstants
 {
 	float brightnessScale;
-	bool wcg;
-	float pad1;
-	float pad2;
+	float gamma;
+	BigBool enabled;
+	float wcgScale;
 };
+
+constexpr auto size = sizeof(ShaderConstants);
 
 static_assert(sizeof(ShaderConstants) == 16);
 
@@ -36,15 +44,17 @@ public:
 
 	void AddTexture(ID3D11Texture2D* tex);
 	void AddRTV(ID3D11RenderTargetView* rtv);
-	void CopyHDR(ID3D11DeviceContext * context, ID3D11ComputeShader * shader, ID3D11ShaderResourceView ** srvs, ID3D11UnorderedAccessView * uav, UINT textureX, UINT textureY);
+	void RunHDRShaders(ID3D11DeviceContext * context, ID3D11ComputeShader * shader, ID3D11ShaderResourceView ** srvs, ID3D11UnorderedAccessView * uav, UINT textureX, UINT textureY);
 	void InitResources(ID3D11Device * device);
+
+	int firstBBIndex, secondBBIndex;
 
 	ShaderConstants constants =
 	{
-		0.01f,
+		1.0f,
+		2.2f,
 		false,
-		0,
-		0,
+		1.0f,
 	};
 
 
@@ -57,6 +67,7 @@ private:
 	ID3D11ComputeShader * m_computeShader;
 	ID3D11UnorderedAccessView * m_backbufferUAVs[2];
 	ID3D11Buffer * m_constantBuffer;
+	ID3D11Texture2D * m_backbuffer;
 
 
 };

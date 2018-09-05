@@ -1117,10 +1117,12 @@ namespace reshade
 			TextureManager::instance.start = !TextureManager::instance.start;
 		}
 
-		if (_input->is_key_pressed(0x71)) // i hope this is f2
+
+		if (_input->is_key_pressed(0x72)) // i hope this is f3
 		{
-			TextureManager::instance.constants.wcg = !TextureManager::instance.constants.wcg;
+			TextureManager::instance.constants.enabled.b = !TextureManager::instance.constants.enabled.b;
 		}
+
 
 		_effects_expanded_state &= 2;
 
@@ -1296,14 +1298,21 @@ namespace reshade
 	void runtime::DrawHdrPickerMenu()
 	{
 		ImGui::Checkbox("Start", &TextureManager::instance.start);
-		ImGui::SliderFloat("Brightness scale", &TextureManager::instance.constants.brightnessScale, 0.0001f, 1.0f);
+		ImGui::SliderFloat("Brightness scale", &TextureManager::instance.constants.brightnessScale, 0.0f, 1.0f);
+		ImGui::SliderFloat("WCG scale", &TextureManager::instance.constants.wcgScale, 0.0f, 1.0f);
+		ImGui::SliderFloat("Gamma", &TextureManager::instance.constants.gamma, 1.0f, 10.0f);
+
 		ImGui::Text("Please select the image that you want to use for the HDR backbuffer");
+		int firstBB, secondBB;
+		ImGui::InputInt("Backbuffer index 0: ", &TextureManager::instance.firstBBIndex);
+		ImGui::InputInt("Backbuffer index 1: ", &TextureManager::instance.secondBBIndex);
 
 		auto& textures = TextureManager::instance.texData;
 		for (int i = 0; i < textures.size(); i++)
 		{
-			ImVec2 size = { 300,300};
+			ImVec2 size = { 1024,1024 };
 			auto dataPtr = &textures[i];
+			ImGui::Text("%d", i);
 			ImGui::Image(dataPtr, size);
 		}
 	}

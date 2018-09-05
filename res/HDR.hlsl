@@ -35,9 +35,9 @@ float3 REC709toREC2020(float3 RGB709)
 cbuffer cb : register(b0)
 {
 	float brightnessScale;
-	bool wcg;
+	float gamma;
 	bool enabled;
-	float pad3;
+	float wcgScale;
 };
 
 float3 ApplyREC709Curve(float3 x)
@@ -51,10 +51,46 @@ float3 ApplySRGBCurve(float3 x)
 	return x < 0.0031308 ? 12.92 * x : 1.055 * pow(x, 1.0 / 2.4) - 0.055;
 }
 
+float ApplySRGBCurve(float x)
+{
+	// Approximately pow(x, 1.0 / 2.2)
+	return x < 0.0031308 ? 12.92 * x : 1.055 * pow(x, 1.0 / 2.4) - 0.055;
+}
+
 float3 RemoveSRGBCurve(float3 x)
 {
 	// Approximately pow(x, 2.2)
 	return x < 0.04045 ? x / 12.92 : pow((x + 0.055) / 1.055, 2.4);
+}
+
+// it appears that 256 is the brightest color on the screen, so we should map that to 10,000 nits.
+// though after tonemapping, it just goes to 1,1,1
+
+static const float tenThousand = 10000.0f;
+
+
+float Luminance(float3 linearColor)
+{
+	return 0.2126 * linearColor.r + 0.7152 * linearColor.g + 0.0722 * linearColor.b;
+}
+
+float A = 0.15;
+float B = 0.50;
+float C = 0.10;
+float D = 0.20;
+float E = 0.02;
+float F = 0.30;
+float W = 11.2;
+
+float3 Uncharted2Tonemap(float3 x)
+{
+	return ((x*(A*x + C * B) + D * E) / (x*(A*x + B) + D * F)) - E / F;
+}
+
+
+float Uncharted2Tonemap(float x)
+{
+	return ((x*(A*x + C * B) + D * E) / (x*(A*x + B) + D * F)) - E / F;
 }
 
 [numthreads(8, 8, 1)]
@@ -70,19 +106,33 @@ void CopyHDR(uint2 dtid : SV_DispatchThreadID)
 		col = originalColor;
 		col.rgb = RemoveSRGBCurve(col.rgb);
 		col.rgb = REC709toREC2020(col.rgb);
-		//col.rgb = ApplySRGBCurve(col.rgb);
-		//col.rgb = ApplyREC709Curve(col.rgb);
 		col.rgb = ApplyREC2084Curve(col.rgb, 180);
 	}
 	else
 	{
-		col = linearColor;
-		col *= brightnessScale.x;
-		if (!wcg)
-		{
-			col.rgb = REC709toREC2020(col.rgb);
-		}
-		col.rgb = ApplyREC2084Curve(col.rgb, 10000);
+//		float3 scale = 10000.0f / 256.0f;
+		//float3 nits = REC709toREC2020(linearColor.rgb) * scale;
+		//col.rgb = nits;
+		//col.a = 1.0f;
+
+		originalColor.rgb = RemoveSRGBCurve(originalColor.rgb);
+
+		float pbrLuminance = Luminance(linearColor);
+		float tonemappedBrightness = Luminance(originalColor);
+
+		float3 wcgColor = originalColor.rgb;
+		originalColor.rgb = REC709toREC2020(originalColor.rgb);
+		
+		linearColor.rgb = REC709toREC2020(linearColor.rgb);
+
+		float toneMapRatio = pbrLuminance / tonemappedBrightness;
+
+		toneMapRatio = lerp(1, toneMapRatio, brightnessScale);
+
+		toneMapRatio = pow(toneMapRatio, 1.0f / gamma);
+		originalColor.rgb = lerp(originalColor.rgb, wcgColor, wcgScale);
+
+		col.rgb = ApplyREC2084Curve(originalColor.rgb * toneMapRatio, 200);
 
 	}
 
