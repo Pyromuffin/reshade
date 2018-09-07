@@ -5,7 +5,7 @@
 #include "d3d11_device.hpp"
 #include "d3d11_runtime.hpp"
 #include "dxgi/dxgi_swapchain.hpp"
-
+#include "renderdoc_app.h"
 
 struct IDXGISwapChain4;
 
@@ -40,7 +40,7 @@ public:
 	DXGISwapChain * hdrSwapChain;
 	void CreateHDRSwapChain(DXGI_SWAP_CHAIN_DESC* desc, D3D11Device * device, const std::shared_ptr<reshade::runtime> &runtime, std::function<HRESULT(DXGI_SWAP_CHAIN_DESC*, IDXGISwapChain**)> createSwapChainLambda);
 
-	HRESULT PresentHDR(IDXGISwapChain * sdrSwapchain, UINT sync, UINT flags);
+	HRESULT PresentHDR(DXGISwapChain * sdrSwapchain, UINT sync, UINT flags);
 
 	void AddTexture(ID3D11Texture2D* tex);
 	void AddRTV(ID3D11RenderTargetView* rtv);
@@ -68,6 +68,7 @@ private:
 	ID3D11UnorderedAccessView * m_backbufferUAVs[2];
 	ID3D11Buffer * m_constantBuffer;
 	ID3D11Texture2D * m_backbuffer;
+	RENDERDOC_API_1_1_2 *m_rdoc;
 
 
 };

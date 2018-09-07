@@ -284,6 +284,9 @@
     <ClInclude Include="source\d3d11\TextureManager.h">
       <Filter>hooks\d3d11</Filter>
     </ClInclude>
+    <ClInclude Include="source\renderdoc_app.h">
+      <Filter>core</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="res\shader_copy_ps.hlsl">

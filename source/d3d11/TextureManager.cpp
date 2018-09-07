@@ -13,11 +13,14 @@ void TextureManager::CreateHDRSwapChain(DXGI_SWAP_CHAIN_DESC* desc, D3D11Device 
 {
 	DXGI_SWAP_CHAIN_DESC descCopy = *desc;
 	descCopy.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-	descCopy.BufferUsage |= DXGI_USAGE_UNORDERED_ACCESS | DXGI_USAGE_SHADER_INPUT;
-	//descCopy.Flags = 0;
-	//descCopy.Windowed = true;
+	descCopy.BufferUsage = DXGI_USAGE_UNORDERED_ACCESS | DXGI_USAGE_SHADER_INPUT;
+	descCopy.Flags = 0;
+	descCopy.Windowed = true;
 	descCopy.BufferCount = 2;
-
+	descCopy.BufferDesc.RefreshRate.Numerator = 98;
+	descCopy.BufferDesc.RefreshRate.Denominator = 1;
+	descCopy.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
+	descCopy.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
 
 
 	if constexpr(linear)
@@ -51,7 +54,7 @@ void TextureManager::CreateHDRSwapChain(DXGI_SWAP_CHAIN_DESC* desc, D3D11Device 
 
 std::unordered_map<ID3D11Resource*, ID3D11ShaderResourceView *> srvMap;
 
-HRESULT TextureManager::PresentHDR(IDXGISwapChain * sdrSwapchain, UINT sync, UINT flags)
+HRESULT TextureManager::PresentHDR(DXGISwapChain * sdrSwapchain, UINT sync, UINT flags)
 {
 	ID3D11Device *device;
 	sdrSwapchain->GetDevice(__uuidof(ID3D11Device), (void**)&device);
@@ -71,6 +74,8 @@ HRESULT TextureManager::PresentHDR(IDXGISwapChain * sdrSwapchain, UINT sync, UIN
 
 	ID3D11Resource * currentBB;
 	auto hr = sdrSwapchain->GetBuffer(0, __uuidof(ID3D11Resource), (void**)&currentBB);
+	DXGI_SWAP_CHAIN_DESC swapDesc;
+	sdrSwapchain->GetDesc(&swapDesc);
 
 	if (srvMap.count(currentBB) > 0)
 	{
@@ -78,36 +83,71 @@ HRESULT TextureManager::PresentHDR(IDXGISwapChain * sdrSwapchain, UINT sync, UIN
 	}
 	else
 	{
-		D3D11_TEXTURE2D_DESC texdesc = {};
-		texdesc.Width = 3840;
-		texdesc.Height = 2160;
-		texdesc.ArraySize = texdesc.MipLevels = 1;
-		texdesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-		texdesc.SampleDesc = { 1, 0 };
-		texdesc.Usage = D3D11_USAGE_DEFAULT;
-		texdesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+		// create backbuffer view
+		if (false) // swapDesc.BufferUsage & DXGI_USAGE_SHADER_INPUT)
+		{
+			D3D11_SHADER_RESOURCE_VIEW_DESC desc;
+			desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+			desc.Texture2D.MipLevels = -1;
+			desc.Texture2D.MostDetailedMip = 0;
+			desc.Format = swapDesc.BufferDesc.Format; // srgb?
 
-		device->CreateTexture2D(&texdesc, nullptr, &m_backbuffer);
+			ID3D11ShaderResourceView * srv;
+			device->CreateShaderResourceView(currentBB, &desc, &srv);
+			srvMap[currentBB] = srv;
+			srvs[1] = srvMap[currentBB];
+		}
+		else
+		{
+			D3D11_TEXTURE2D_DESC texdesc = {};
+			texdesc.Width = 3840;
+			texdesc.Height = 2160;
+			texdesc.ArraySize = texdesc.MipLevels = 1;
+			texdesc.Format = swapDesc.BufferDesc.Format;
+			texdesc.SampleDesc = { 1, 0 };
+			texdesc.Usage = D3D11_USAGE_DEFAULT;
+			texdesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 
+			device->CreateTexture2D(&texdesc, nullptr, &m_backbuffer);
 
-		D3D11_SHADER_RESOURCE_VIEW_DESC desc;
-		desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-		desc.Texture2D.MipLevels = -1;
-		desc.Texture2D.MostDetailedMip = 0;
-		desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // srgb?
-		
-		ID3D11ShaderResourceView * srv;
-		device->CreateShaderResourceView(m_backbuffer, &desc, &srv);
-		srvMap[currentBB] = srv;
-		srvs[1] = srvMap[currentBB];
+			D3D11_SHADER_RESOURCE_VIEW_DESC desc;
+			desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+			desc.Texture2D.MipLevels = -1;
+			desc.Texture2D.MostDetailedMip = 0;
+			desc.Format = swapDesc.BufferDesc.Format; // srgb?
+
+			ID3D11ShaderResourceView * srv;
+			device->CreateShaderResourceView(m_backbuffer, &desc, &srv);
+			srvMap[currentBB] = srv;
+			srvs[1] = srvMap[currentBB];
+		}
 	}
 
-
-	context->CopyResource(m_backbuffer, currentBB);
+	if ( true) //(swapDesc.BufferUsage & DXGI_USAGE_SHADER_INPUT) == 0)
+	{
+		context->CopyResource(m_backbuffer, currentBB);
+	}
 
 	RunHDRShaders(context, m_computeShader, srvs, m_backbufferUAVs[hdrSwapChain->GetCurrentBackBufferIndex()], 3840, 2160);
+	auto ret = hdrSwapChain->_orig->Present(sync, flags);
 
-	return hdrSwapChain->_orig->Present(sync, flags);
+	static bool capturing = false;
+	static bool endCapture = false;
+	if (endCapture)
+	{
+		m_rdoc->EndFrameCapture(nullptr, nullptr);
+		endCapture = false;
+	}
+
+	if (capturing)
+	{
+		m_rdoc->SetActiveWindow(device, swapDesc.OutputWindow);
+		m_rdoc->StartFrameCapture(nullptr, nullptr);
+		capturing = false;
+		endCapture = true;
+	}
+
+	return ret;
 }
 
 void TextureManager::AddTexture(ID3D11Texture2D * tex)
@@ -185,15 +225,28 @@ void TextureManager::AddRTV(ID3D11RenderTargetView * rtv)
 			texData.push_back(data);
 		}
 	}
-
-	
-
-
 }
 
 void TextureManager::RunHDRShaders( ID3D11DeviceContext * context, ID3D11ComputeShader *shader, ID3D11ShaderResourceView ** srvs, ID3D11UnorderedAccessView * uav, UINT textureX, UINT textureY)
 {
+	ID3D11RenderTargetView *rtvs[8];
+	ID3D11DepthStencilView *dsv[1];
+
+	context->OMGetRenderTargets(8, rtvs, dsv);
 	context->OMSetRenderTargets(0, nullptr, nullptr);
+
+	// save off rendering state
+	ID3D11ComputeShader *oldShader;
+	ID3D11ShaderResourceView *oldViews[8];
+	ID3D11UnorderedAccessView *oldUavs[8];
+	ID3D11Buffer *oldBuffers[8];
+
+	context->CSGetShader(&oldShader, nullptr, nullptr);
+	context->CSGetShaderResources(0, 8, oldViews);
+	context->CSGetUnorderedAccessViews(0, 8, oldUavs);
+	context->CSGetConstantBuffers(0, 8, oldBuffers);
+
+
 	context->CSSetShader(shader, NULL, 0);
 	//ID3D11ShaderResourceView * srvs[1] = { srv };
 	ID3D11UnorderedAccessView * uavs[1] = { uav };
@@ -209,14 +262,32 @@ void TextureManager::RunHDRShaders( ID3D11DeviceContext * context, ID3D11Compute
 	context->CSSetConstantBuffers(0, 1, &m_constantBuffer);
 	context->Dispatch(textureX / 8, textureY / 8, 1);
 
-	srvs[0] = nullptr;
-	srvs[1] = nullptr;
+	// restore rendering state.
+	context->CSSetShader(oldShader, nullptr, 0);
+	context->CSSetShaderResources(0, 8, oldViews);
+	context->CSSetUnorderedAccessViews(0, 8, oldUavs, NULL);
+	context->CSSetConstantBuffers(0, 8, oldBuffers);
+	context->OMSetRenderTargets(8, rtvs, dsv[0]);
+}
 
-	uavs[0] = nullptr;
-
-
-	context->CSSetShaderResources(0, 2, srvs);
-	context->CSSetUnorderedAccessViews(0, 1, uavs, NULL);
+typedef int RENDERDOC_GetAPI(RENDERDOC_Version version, void **outAPIPointers);
+RENDERDOC_API_1_1_2* LoadRenderDoc()
+{
+	HMODULE mod = LoadLibraryA("C:\\Program Files\\RenderDoc\\renderdoc.dll");
+	if(mod)
+	{
+		auto proc = (RENDERDOC_GetAPI*)GetProcAddress(mod, "RENDERDOC_GetAPI");
+		RENDERDOC_API_1_1_2 *rdoc = nullptr;
+		proc(eRENDERDOC_API_Version_1_1_2, (void**)&rdoc);
+		rdoc->LaunchReplayUI(1, nullptr);
+		return rdoc;
+	}
+	else
+	{
+		LOG(INFO) << GetLastError();
+	}
+	
+	return nullptr;
 }
 
 
@@ -252,11 +323,17 @@ void TextureManager::InitResources( ID3D11Device * device)
 		HR = device->CreateBuffer(&cbDesc, nullptr, &m_constantBuffer);
 		LOG(INFO) << "CB HR: " << HR;
 
+		IDXGISwapChain4 *swap4;
+		hdrSwapChain->QueryInterface(__uuidof(IDXGISwapChain4), (void**)&swap4);
+		//hdrSwapChain->SetColorSpace1(DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020);
 
+
+		//m_rdoc = LoadRenderDoc();
 		m_inited = true;
 	}
 	
 }
+
 
 
 TextureManager::TextureManager()

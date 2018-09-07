@@ -428,6 +428,7 @@
     <ClInclude Include="source\opengl\opengl_stateblock.hpp" />
     <ClInclude Include="source\opengl\opengl_stubs.hpp" />
     <ClInclude Include="source\opengl\opengl_stubs_internal.hpp" />
+    <ClInclude Include="source\renderdoc_app.h" />
     <ClInclude Include="source\resource_loading.hpp" />
     <ClInclude Include="source\runtime.hpp" />
     <ClInclude Include="source\runtime_objects.hpp" />

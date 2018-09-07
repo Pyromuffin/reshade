@@ -91,6 +91,14 @@ HRESULT STDMETHODCALLTYPE IDXGIFactory_CreateSwapChain(IDXGIFactory *pFactory, I
 
 	dump_swapchain_desc(*pDesc);
 
+	// hack in the HDR
+	/*
+	pDesc->BufferCount = 2;
+	pDesc->SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+	pDesc->BufferUsage |= DXGI_USAGE_UNORDERED_ACCESS | DXGI_USAGE_SHADER_INPUT;
+	pDesc->BufferDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
+	*/
+
 	const HRESULT hr = reshade::hooks::call(&IDXGIFactory_CreateSwapChain)(pFactory, device_orig, pDesc, ppSwapChain);
 
 	auto createSwapchainLambda = [&](DXGI_SWAP_CHAIN_DESC* descPtr, IDXGISwapChain** swapchainPtr) -> HRESULT
@@ -146,7 +154,9 @@ HRESULT STDMETHODCALLTYPE IDXGIFactory_CreateSwapChain(IDXGIFactory *pFactory, I
 
 		device_d3d11->_runtimes.push_back(runtime);
 
+		//TextureManager::instance.hdrSwapChain = new DXGISwapChain(device_d3d11, swapchain, runtime);
 		*ppSwapChain = new DXGISwapChain(device_d3d11, swapchain, runtime);
+
 		TextureManager::instance.CreateHDRSwapChain(pDesc, device_d3d11, runtime, createSwapchainLambda);
 
 
